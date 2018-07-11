@@ -25,6 +25,5 @@ def merkle_tree(hashlist): #hashlist является списком прохэ�
 			new_hash_list.append(additional_arg)
 	merkle_tree(new_hash_list)
 
-merkle_tree(Tx_hashlist)
-print (merkle_tree_data)
+
 
