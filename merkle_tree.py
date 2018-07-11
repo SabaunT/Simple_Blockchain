@@ -2,7 +2,7 @@ import hashlib
 
 
 Tx_hashlist1 = ['A1', 'B2', 'C3', 'D4', 'E5', 'F6', 'G7', 'H8']
-Tx_hashlist = [hashlib.sha256(each.encode()) for each in Tx_hashlist1]
+Tx_hashlist = [hashlib.sha256(each.encode()).hexdigest() for each in Tx_hashlist1]
 
 #Структура в которой будут храниться отхэшированные транзакции
 merkle_tree_data = []
