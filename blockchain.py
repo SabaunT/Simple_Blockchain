@@ -1,27 +1,29 @@
 import hashlib
 import json
+import requests
 from time import time
 from flask import Flask, jsonify, request
 from uuid import uuid4
 from urllib.parse import urlparse
 
+
 class Blockchain(object):
     def __init__(self):
-        self.chain=[]
-        self.current_transactions=[]
-        self.new_block(proof=100, previous_hash=1) #!
-        self.nodes=set() #!
+        self.chain = []
+        self.current_transactions = []
+        self.new_block(proof=100, previous_hash=1)
+        self.nodes = set()
 
     def new_block(self, proof, previous_hash):
         block = {
-            'index': len(self.chain)+1,
+            'index': len(self.chain) + 1,
             'timestamp': time(),
             'transactions': self.current_transactions,
             'proof': proof,
             'previous_hash': previous_hash
         }
         self.chain.append(block)
-        self.current_transactions=[]
+        self.current_transactions = []
         return block
 
     def new_transactions(self, sender, reciever, amount):
@@ -30,7 +32,7 @@ class Blockchain(object):
             'reciever': reciever,
             'amount': amount
         })
-        return self.last_block['index']+1
+        return self.last_block['index'] + 1
 
     @property
     def last_block(self):
@@ -45,14 +47,14 @@ class Blockchain(object):
     def validation_task(proof, last_proof):
         task = f'{last_proof}{proof}'.encode()
         task_hash = hashlib.sha256(task).hexdigest()
-        return task_hash[:4]=='0000'
+        return task_hash[:4] == '0000'
 
     def proof_of_work(self, last_proof):
         proof = 0
         while self.validation_task(proof, last_proof) is False:
             proof += 1
         return proof
-#значение этого метода понимаю, работу так себе представляю, просто копировал
+
     def register_nodes(self, address):
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
@@ -80,7 +82,7 @@ class Blockchain(object):
         max_length = len(self.chain)
 
         for node in neighbours:
-            response = request.get(f'http://{node}/chain')
+            response = requests.get(f'http://{node}/chain')
 
             if response.status_code == 200:
                 length = response.json()['length']
@@ -97,26 +99,26 @@ class Blockchain(object):
         return False
 
 
-
-
 app = Flask(__name__)
 node_identifier = str(uuid4()).replace('-', '')
 
 blockchain = Blockchain()
 
-# С этого момента темный лес в ПОНИМАНИИ работы кода
-@app.route('/transactions/new', methods = ['POST'])
+
+@app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     val_args = request.get_json()
 
-    obligatory_values = ['sender', 'receiver', 'amount']
+    obligatory_values = ['sender', 'reciever', 'amount']
     if not all(x in val_args for x in obligatory_values):
         return 'Missing value', 400
+
     index = blockchain.new_transactions(val_args['sender'],
                                         val_args['reciever'],
                                         val_args['amount'])
     statement = {'msg': f'Transactions will be added to the block {index}'}
     return jsonify(statement), 201
+
 
 @app.route('/mine', methods=['GET'])
 def mine():
@@ -124,18 +126,21 @@ def mine():
     last_proof = last_block['proof']
     proof = blockchain.proof_of_work(last_proof)
 
-    blockchain.new_transactions(0, node_identifier, 1)
+    if len(blockchain.current_transactions) < 5:
+        return 'No Tx in UTXO', 400
+    else:
+        blockchain.new_transactions(0, node_identifier, 1)
 
-    block = blockchain.new_block(proof)
+        block = blockchain.new_block(proof, blockchain.hash(last_block))
 
-    statement = {
-        'msg': 'New block was found',
-        'index': block['index'],
-        'transactions': block['transactions'],
-        'proof': block['proof'],
-        'previous_hash': block['previous_hash']
-    }
-    return jsonify(statement), 200
+        statement = {
+            'msg': 'New block was found',
+            'index': block['index'],
+            'transactions': block['transactions'],
+            'proof': block['proof'],
+            'previous_hash': block['previous_hash']
+        }
+        return jsonify(statement), 200
 
 
 @app.route('/chain', methods=['GET'])
@@ -146,7 +151,7 @@ def full_chain():
     }
     return jsonify(response), 200
 
-#эти endpointы я бездумно скопировал
+
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     values = request.get_json()
@@ -156,7 +161,7 @@ def register_nodes():
         return "Error: Please supply a valid list of nodes", 400
 
     for node in nodes:
-        blockchain.register_node(node)
+        blockchain.register_nodes(node)
 
     response = {
         'message': 'New nodes have been added',
@@ -182,8 +187,9 @@ def consensus():
 
     return jsonify(response), 200
 
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port= 5000)
+    app.run(host='0.0.0.0', port=5000)
 
 
 
